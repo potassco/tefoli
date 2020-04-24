@@ -8,8 +8,8 @@ import ctypes
 import ctypes.util
 import clingo
 
-from typing import Optional, Union, Iterator, Tuple
-from ctypes import c_bool, c_void_p, c_int, c_double, c_uint, c_uint64, c_size_t, c_char_p, Structure, POINTER, byref
+from typing import Optional, Union, Iterator, Tuple, Callable
+from ctypes import c_bool, c_void_p, c_int, c_double, c_uint, c_uint64, c_size_t, c_char_p, Structure, POINTER, byref, CFUNCTYPE
 
 class _c_value(ctypes.Union):
     _fields_ = [ ("integer", c_int)
@@ -22,6 +22,7 @@ class _c_variant(Structure):
                , ("value", _c_value)
                ]
 
+_add_stm = CFUNCTYPE(c_bool, c_void_p, c_void_p)
 
 class Theory:
     """
@@ -38,6 +39,7 @@ class Theory:
     - `bool create(theory_t **theory)`
     - `bool destroy(theory_t *theory)`
     - `bool register(theory_t *theory, clingo_control_t* control)`
+    - `bool rewrite_statement(theory_t *theory, clingo_ast_statement_t const *stm, rewrite_callback_t add, void *data)`
     - `bool prepare(theory_t *theory, clingo_control_t* control)`
     - `bool register_options(theory_t *theory, clingo_options_t* options)`
     - `bool validate_options(theory_t *theory)`
@@ -78,6 +80,12 @@ class Theory:
 
         # bool register(theory_t *theory, clingo_control_t* control);
         self.__register = self.__fun(prefix, "register", c_bool, [c_void_p, c_void_p])
+
+        # bool rewrite_statement(theory_t *theory, clingo_ast_statement_t const *stm, rewrite_callback_t add, void *data)
+        try:
+            self.__rewrite_statement = self.__fun(prefix, "rewrite_statement", c_bool, [c_void_p, c_void_p, c_void_p])
+        except AttributeError:
+            self.__rewrite_statement = None
 
         # bool prepare(theory_t *theory, clingo_control_t* control);
         self.__prepare = self.__fun(prefix, "prepare", c_bool, [c_void_p, c_void_p])
@@ -164,6 +172,28 @@ class Theory:
             The associated control object.
         """
         self.__prepare(self.__c_theory, control._to_c)
+
+    def rewrite_statement(self, stm: clingo.ast.AST, add: Callable[[clingo.ast.AST], None]) -> None:
+        """
+        Rewrite the given statement and call add on the rewritten version(s).
+
+        Must be called for some theories that have to perform rewritings on the
+        AST.
+
+        Arguments
+        ---------
+        stm: clingo.ast.AST
+            Statement to translate.
+        add: Callable[[clingo.ast.AST], None]
+            Callback for adding translated statements.
+        """
+        def py_add(stm, data):
+            try:
+                add(clingo.ast.AST._from_c(stm))
+            except:
+                return False
+            return True
+        self.__rewrite_statement(self.__c_theory, stm._to_c, _add_stm(py_add), None)
 
     def register_options(self, options: clingo.ApplicationOptions) -> None:
         """

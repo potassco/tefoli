@@ -45,7 +45,6 @@ class Application:
 
 
     def main(self, prg, files):
-        self.__theory.configure("propagate", "full,1")
         self.__theory.register(prg)
 
         if not files:

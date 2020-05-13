@@ -1,11 +1,7 @@
-Loading shared (C) libraries resembling theories using a python script.
-In this way we can use difference logic (clingoDL), CSP(clingcon) and other theories in combination with the
-clingo Python api,
-enabling easy multi-shot solving with theories and also maybe theory
-combinations.
+This project defines an API to load theory plugins written in C or C++ and then use them with [clingo's Python API][clingo].
+This allows for using theories with multi-shot solving and even loading multiple theories.
+Currently, [clingcon] and [clingo-dl] can be loaded as plugins.
 
-
-Note that this requires Python 3 to run (the theory module uses type
-annotations).
-
-[clingo]: https://potassco.org/clingo/python-api/current/
+[clingo]: https://potassco.org/clingo/
+[clingcon]: https://potassco.org/clingcon/
+[clingo-dl]: https://potassco.org/labs/clingodl/

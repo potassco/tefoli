@@ -25,7 +25,6 @@ class Application:
         pass
 
     def main(self, prg, files):
-        self.__theory.configure("propagate", "full,1")
         self.__theory.register(prg)
         if not files:
             files.append("-")
@@ -35,19 +34,11 @@ class Application:
         prg.ground([("base", [])])
         self.__theory.prepare(prg)
 
-        # Note: this symbol is created upon theory creation
-        #       right now it is a bit tricky to get into a state where Propagator.init has been called for all theory
-        #       one possibility would be to register a propgator after all other theories
-        #       another to lazily build a lookup table when required
-        adjust = self.__theory.lookup_symbol(clingo.Number(0))
-
         with prg.solve(on_model=self.__on_model, on_statistics=self.__on_statistics, yield_=True) as handle:
             for model in handle:
                 sys.stdout.write("assignment:")
                 for name, value in self.__theory.assignment(model.thread_id):
                     sys.stdout.write(" {}={}".format(name, value))
                 sys.stdout.write("\n")
-                if self.__theory.has_value(model.thread_id, adjust):
-                    sys.stdout.write("adjustment: {}\n".format(self.__theory.get_value(model.thread_id, adjust)))
 
 sys.exit(int(clingo.clingo_main(Application("test"), sys.argv[1:])))

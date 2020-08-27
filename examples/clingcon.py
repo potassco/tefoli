@@ -43,19 +43,11 @@ class Application:
 
         sys.stdout.flush()
 
-
     def main(self, prg, files):
         self.__theory.register(prg)
 
-        if not files:
-            files.append("-")
-        with prg.builder() as builder:
-            for name in files:
-                if name == "-":
-                    self.__parse(builder, sys.stdin)
-                else:
-                    with open(name) as f:
-                        self.__parse(builder, f)
+        with prg.builder() as bld:
+            theory.parse_files(files, self.__theory, bld.add)
 
         prg.ground([("base", [])])
         self.__theory.prepare(prg)
@@ -75,4 +67,4 @@ class Application:
         return symbol.type == clingo.SymbolType.Function and symbol.name.startswith("__")
 
 
-sys.exit(int(clingo.clingo_main(Application("test"), sys.argv[1:])))
+sys.exit(int(clingo.clingo_main(Application("clingcon"), sys.argv[1:])))

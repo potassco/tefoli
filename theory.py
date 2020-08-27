@@ -3,34 +3,47 @@ This module defines a single Theory class for using a C theory with
 clingo's python library.
 """
 
-
+import sys
 import ctypes
-import ctypes.util
-import clingo
+from typing import Optional, Union, Iterator, Tuple, Callable, IO
+from ctypes import c_bool, c_void_p, c_int, c_double, c_uint, c_uint64, c_size_t, c_char_p, Structure
+from ctypes import POINTER, byref, CFUNCTYPE, cdll
+from ctypes.util import find_library
 
-from typing import Optional, Union, Iterator, Tuple, Callable
-from ctypes import c_bool, c_void_p, c_int, c_double, c_uint, c_uint64, c_size_t, c_char_p, Structure, POINTER, byref, CFUNCTYPE
+from clingo import _error_message, _error_code, _Symbol # type: ignore
+from clingo import Control, ApplicationOptions, Model, StatisticsMap, Symbol
+from clingo import parse_program
+from clingo.ast import AST
+
+
+ValueType = Union[int, float, Symbol]
+
 
 class _c_value(ctypes.Union):
+    # pylint: disable=bad-whitespace,bad-continuation,invalid-name
     _fields_ = [ ("integer", c_int)
                , ("double", c_double)
                , ("symbol", c_uint64)
                ]
 
+
 class _c_variant(Structure):
+    # pylint: disable=bad-whitespace,bad-continuation,invalid-name
     _fields_ = [ ("type", c_int)
                , ("value", _c_value)
                ]
 
-_add_stm = CFUNCTYPE(c_bool, c_void_p, c_void_p)
+
+_add_stm = CFUNCTYPE(c_bool, c_void_p, c_void_p) # pylint: disable=invalid-name
+
 
 class Theory:
     """
     Interface to call functions from a C-library extending clingo's C/Python
     library.
 
-    The functions in here are designed to be used with a `clingo.Application`
-    object but can also be used with a standalone `clingo.Control` object.
+    The functions in here are designed to be used with a `Application`
+    object but can also be used with a standalone `Control` object.
 
     Notes
     -----
@@ -53,8 +66,7 @@ class Theory:
     - `void assignment_get_value(theory_t *theory, uint32_t thread_id, size_t index, value_t *value)`
     - `bool configure(theory_t *theory, char const *key, char const *value)`
     """
-
-    ValueType = Union[int, float, clingo.Symbol]
+    # pylint: disable=too-many-instance-attributes,line-too-long,protected-access
 
     def __init__(self, prefix: str, lib: str):
         """
@@ -70,7 +82,10 @@ class Theory:
         self.__c_theory = None
 
         # load library
-        self.__theory = ctypes.cdll.LoadLibrary(ctypes.util.find_library(lib))
+        opt_lib = find_library(lib)
+        if opt_lib is None:
+            raise RuntimeError('could not find library')
+        self.__theory = cdll.LoadLibrary(opt_lib)
 
         # bool create(theory_t **theory);
         self.__create = self.__fun(prefix, "create", c_bool, [POINTER(c_void_p)])
@@ -149,18 +164,18 @@ class Theory:
         """
         self.__configure(self.__c_theory, key.encode(), value.encode())
 
-    def register(self, control: clingo.Control) -> None:
+    def register(self, control: Control) -> None:
         """
         Register the theory with the given control object.
 
         Arguments
         ---------
-        control: clingo.Control
+        control: Control
             Target to register with.
         """
-        self.__register(self.__c_theory, control._to_c)
+        self.__register(self.__c_theory, control._to_c) # type: ignore
 
-    def prepare(self, control: clingo.Control) -> None:
+    def prepare(self, control: Control) -> None:
         """
         Prepare the theory.
 
@@ -168,12 +183,12 @@ class Theory:
 
         Arguments
         ---------
-        control: clingo.Control
+        control: Control
             The associated control object.
         """
-        self.__prepare(self.__c_theory, control._to_c)
+        self.__prepare(self.__c_theory, control._to_c) # type: ignore
 
-    def rewrite_statement(self, stm: clingo.ast.AST, add: Callable[[clingo.ast.AST], None]) -> None:
+    def rewrite_statement(self, stm: AST, add: Callable[[AST], None]) -> None:
         """
         Rewrite the given statement and call add on the rewritten version(s).
 
@@ -182,31 +197,32 @@ class Theory:
 
         Arguments
         ---------
-        stm: clingo.ast.AST
+        stm: AST
             Statement to translate.
-        add: Callable[[clingo.ast.AST], None]
+        add: Callable[[AST], None]
             Callback for adding translated statements.
         """
         def py_add(stm, data):
+            # pylint: disable=unused-argument,bare-except
             try:
-                add(clingo.ast.AST._from_c(stm))
+                add(AST._from_c(stm))
             except:
                 return False
             return True
         self.__rewrite_statement(self.__c_theory, stm._to_c, _add_stm(py_add), None)
 
-    def register_options(self, options: clingo.ApplicationOptions) -> None:
+    def register_options(self, options: ApplicationOptions) -> None:
         """
         Register the theory's options with the given application options
         object.
 
         Arguments
         ---------
-        options: clingo.ApplicationOptions
+        options: ApplicationOptions
             Target to register with.
         """
 
-        self.__register_options(self.__c_theory, options._to_c)
+        self.__register_options(self.__c_theory, options._to_c) # type: ignore
 
     def validate_options(self) -> None:
         """
@@ -214,31 +230,31 @@ class Theory:
         """
         self.__validate_options(self.__c_theory)
 
-    def on_model(self, model: clingo.Model) -> None:
+    def on_model(self, model: Model) -> None:
         """
         Inform the theory that a model has been found.
 
         Arguments
         ---------
-        model: clingo.Model
+        model: Model
             The current model.
         """
-        self.__on_model(self.__c_theory, model._to_c)
+        self.__on_model(self.__c_theory, model._to_c) # type: ignore
 
-    def on_statistics(self, step: clingo.StatisticsMap, accu: clingo.StatisticsMap) -> None:
+    def on_statistics(self, step: StatisticsMap, accu: StatisticsMap) -> None:
         """
         Add the theory's statistics to the given maps.
 
         Arguments
         ---------
-        step: clingo.StatisticsMap
+        step: StatisticsMap
             Map for per step statistics.
-        accu: clingo.StatisticsMap
+        accu: StatisticsMap
             Map for accumulated statistics.
         """
-        self.__on_statistics(self.__c_theory, step._to_c, accu._to_c)
+        self.__on_statistics(self.__c_theory, step._to_c, accu._to_c) # type: ignore
 
-    def lookup_symbol(self, symbol: clingo.Symbol) -> Optional[int]:
+    def lookup_symbol(self, symbol: Symbol) -> Optional[int]:
         """
         Get the integer index of a symbol assigned by the theory when a
         model is found.
@@ -247,7 +263,7 @@ class Theory:
 
         Arguments
         ---------
-        symbol: clingo.Symbol
+        symbol: Symbol
             The symbol to look up.
 
         Returns
@@ -256,12 +272,11 @@ class Theory:
             The index of the value if found.
         """
         c_index = c_size_t()
-        if self.__lookup_symbol(self.__c_theory, symbol._to_c, byref(c_index)):
+        if self.__lookup_symbol(self.__c_theory, symbol._to_c, byref(c_index)): # type: ignore
             return c_index.value
-        else:
-            return None
+        return None
 
-    def get_symbol(self, index: int) -> clingo.Symbol:
+    def get_symbol(self, index: int) -> Symbol:
         """
         Get the symbol associated with an index.
 
@@ -274,10 +289,10 @@ class Theory:
 
         Returns
         -------
-        clingo.Symbol
+        Symbol
             The associated symbol.
         """
-        return clingo._Symbol(self.__get_symbol(self.__c_theory, index))
+        return _Symbol(self.__get_symbol(self.__c_theory, index))
 
     def has_value(self, thread_id: int, index: int) -> bool:
         """
@@ -311,20 +326,19 @@ class Theory:
         Returns
         -------
         ValueType
-            The value of the index in form of an int, float, or clingo.Symbol.
+            The value of the index in form of an int, float, or Symbol.
         """
         c_value = _c_variant()
         self.__assignment_get_value(self.__c_theory, thread_id, index, byref(c_value))
         if c_value.type == 0:
             return c_value.value.integer
-        elif c_value.type == 1:
+        if c_value.type == 1:
             return c_value.value.double
-        elif c_value.type == 2:
-            return clingo._Symbol(c_value.value.symbol)
-        else:
-            return None
+        if c_value.type == 2:
+            return _Symbol(c_value.value.symbol)
+        raise RuntimeError("must not happen")
 
-    def assignment(self, thread_id: int) -> Iterator[Tuple[clingo.Symbol,ValueType]]:
+    def assignment(self, thread_id: int) -> Iterator[Tuple[Symbol, ValueType]]:
         """
         Get all values symbol/value pairs assigned by the theory in the
         current model.
@@ -336,13 +350,13 @@ class Theory:
 
         Returns
         -------
-        Iterator[Tuple[clingo.Symbol,ValueType]]
+        Iterator[Tuple[Symbol,ValueType]]
             An iterator over symbol/value pairs.
         """
         c_index = c_size_t()
         self.__assignment_begin(self.__c_theory, thread_id, byref(c_index))
         while self.__assignment_next(self.__c_theory, thread_id, byref(c_index)):
-            yield (self.get_symbol(c_index), self.get_value(thread_id, c_index))
+            yield (self.get_symbol(c_index.value), self.get_value(thread_id, c_index.value))
 
     def __fun(self, prefix, name, res, args, error=True):
         ret = self.__theory["{}_{}".format(prefix, name)]
@@ -352,12 +366,13 @@ class Theory:
         return ret
 
     def __skip_error(self, ret, func, arguments):
+        # pylint: disable=unused-argument
         return ret
 
     def __handle_error(self, success, func, arguments):
         if not success:
-            msg = clingo._error_message()
-            code = clingo._error_code()
+            msg = _error_message()
+            code = _error_code()
             if msg is None:
                 msg = "no message"
             if code in (1, 2, 4):
@@ -366,3 +381,27 @@ class Theory:
                 raise MemoryError(msg)
             raise RuntimeError("unknow error")
 
+
+def _parse(stream: IO[str], theory: Theory, add: Callable[[AST], None]):
+    parse_program(stream.read(), lambda stm: theory.rewrite_statement(stm, add))
+
+
+def parse_files(files: Iterator[str], theory: Theory, add: Callable[[AST], None]):
+    """
+    Helper function to ease parsing of files.
+
+    This function calls the rewrite method of the theory on each parsed
+    statement and then passes them to the callback.
+    """
+    parsed = False
+
+    for name in files:
+        parsed = True
+        if name == "-":
+            _parse(sys.stdin, theory, add)
+        else:
+            with open(name) as file_:
+                _parse(file_, theory, add)
+
+    if not parsed:
+        _parse(sys.stdin, theory, add)
